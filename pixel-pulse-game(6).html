@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MECH NINJA — Team Brawl</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323:wght@400&display=swap');
+
+  :root {
+    --black: #0a0a0a;
+    --white: #f0f0e8;
+    --gray: #888880;
+    --team-white: #f0f0e8;
+    --team-black: #1a1a1a;
+    --accent: #ff6b35;
+    --pulse-gray: rgba(150,150,140,0.6);
+    --pixel: 4px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #111108;
+    color: var(--white);
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    image-rendering: pixelated;
+  }
+
+  /* ===== SCANLINE OVERLAY ===== */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen { display: none; width: 100%; height: 100%; position: absolute; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  /* ===== LOBBY SCREEN ===== */
+  #lobby-screen {
+    background: #0d0d0a;
+  }
+
+  .lobby-border {
+    border: 4px solid var(--white);
+    box-shadow: 8px 8px 0 var(--gray), inset 0 0 0 4px #0d0d0a;
+    padding: 40px 48px;
+    max-width: 600px;
+    width: 90%;
+    position: relative;
+  }
+
+  .lobby-border::before {
+    content: '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓';
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d0d0a;
+    color: var(--gray);
+    font-size: 8px;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    width: 90%;
+    text-align: center;
+  }
+
+  .game-title {
+    font-size: 28px;
+    text-align: center;
+    letter-spacing: 4px;
+    margin-bottom: 4px;
+    color: var(--white);
+    text-shadow: 4px 4px 0 var(--gray);
+  }
+
+  .game-subtitle {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    text-align: center;
+    color: var(--gray);
+    letter-spacing: 6px;
+    margin-bottom: 32px;
+  }
+
+  .pixel-divider {
+    width: 100%;
+    height: 4px;
+    background: repeating-linear-gradient(90deg, var(--white) 0 8px, transparent 8px 12px);
+    margin: 20px 0;
+  }
+
+  .lobby-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 12px 0;
+    font-size: 9px;
+    color: var(--gray);
+  }
+
+  .lobby-info-row span:last-child {
+    color: var(--white);
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+  }
+
+  .team-display {
+    display: flex;
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  .team-box {
+    flex: 1;
+    border: 3px solid;
+    padding: 12px;
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  .team-box.black-team { border-color: #555; background: #111; }
+  .team-box.white-team { border-color: #ccc; background: #222; }
+
+  .team-box .team-name {
+    font-size: 10px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .team-dot {
+    width: 10px; height: 10px;
+    border-radius: 0;
+    display: inline-block;
+    image-rendering: pixelated;
+  }
+  .team-dot.black { background: #eee; border: 2px solid #666; }
+  .team-dot.white { background: #111; border: 2px solid #aaa; }
+
+  .player-list {
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    color: #aaa;
+    line-height: 1.4;
+    min-height: 60px;
+  }
+
+  .pixel-btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 14px 24px;
+    border: 3px solid var(--white);
+    background: var(--black);
+    color: var(--white);
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: none;
+    image-rendering: pixelated;
+    position: relative;
+    box-shadow: 4px 4px 0 var(--gray);
+    outline: none;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .pixel-btn:hover {
+    background: var(--white);
+    color: var(--black);
+    box-shadow: 4px 4px 0 #555;
+  }
+
+  .pixel-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--gray);
+  }
+
+  .pixel-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .pixel-btn.start-btn {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 4px 4px 0 #7a3010;
+  }
+  .pixel-btn.start-btn:hover {
+    background: var(--accent);
+    color: var(--black);
+  }
+
+  .share-box {
+    background: #1a1a14;
+    border: 2px solid #444;
+    padding: 10px 14px;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    color: #aaa;
+    word-break: break-all;
+    margin: 8px 0;
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .share-box:hover { border-color: var(--white); color: var(--white); }
+
+  .name-input {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    background: #1a1a14;
+    border: 3px solid #555;
+    color: var(--white);
+    padding: 10px 12px;
+    width: 100%;
+    outline: none;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .name-input:focus { border-color: var(--white); }
+
+  .status-msg {
+    font-family: 'VT323', monospace;
+    font-size: 16px;
+    color: var(--accent);
+    text-align: center;
+    min-height: 20px;
+    margin-top: 8px;
+  }
+
+  /* ===== GAME SCREEN ===== */
+  #game-screen { background: #000; position: relative; }
+
+  #game-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 12px;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .hud-panel {
+    background: rgba(0,0,0,0.75);
+    border: 2px solid;
+    padding: 6px 10px;
+    font-size: 7px;
+    letter-spacing: 1px;
+    line-height: 1.8;
+    image-rendering: pixelated;
+    min-width: 120px;
+  }
+  .hud-panel.black-panel { border-color: #888; }
+  .hud-panel.white-panel { border-color: #ccc; }
+  .hud-panel.center-panel {
+    border-color: var(--accent);
+    text-align: center;
+    min-width: 160px;
+  }
+
+  .hud-timer {
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    color: var(--accent);
+    display: block;
+    line-height: 1;
+  }
+
+  .cooldown-bar {
+    width: 80px;
+    height: 6px;
+    background: #333;
+    border: 1px solid #666;
+    margin-top: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cooldown-fill {
+    height: 100%;
+    background: var(--gray);
+    transition: width 0.05s linear;
+  }
+  .cooldown-fill.ready { background: var(--white); }
+
+  .tileset-label {
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    display: block;
+    color: #aaa;
+    margin-top: 2px;
+  }
+
+  /* ===== END SCREEN ===== */
+  #end-screen {
+    background: rgba(0,0,0,0.92);
+    z-index: 1000;
+  }
+
+  .end-box {
+    border: 4px solid var(--white);
+    box-shadow: 8px 8px 0 var(--gray);
+    padding: 36px 44px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #0a0a0a;
+  }
+
+  .end-title {
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 6px;
+    text-shadow: 3px 3px 0 var(--gray);
+  }
+
+  .end-winner {
+    font-family: 'VT323', monospace;
+    font-size: 26px;
+    text-align: center;
+    letter-spacing: 4px;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+
+  .scoreboard {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8px;
+    margin-bottom: 20px;
+  }
+  .scoreboard th {
+    border-bottom: 3px solid var(--gray);
+    padding: 8px 6px;
+    text-align: left;
+    color: var(--gray);
+    font-size: 7px;
+  }
+  .scoreboard td {
+    padding: 8px 6px;
+    border-bottom: 1px solid #222;
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+  }
+  .scoreboard tr.rank-1 td { color: #ffd700; }
+  .scoreboard tr.rank-2 td { color: #c0c0c0; }
+  .scoreboard tr.rank-3 td { color: #cd7f32; }
+
+  .rank-medal { font-size: 16px; }
+
+  /* ===== PIXEL NOISE BG ===== */
+  .pixel-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(240,240,232,0.03) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(240,240,232,0.02) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .lobby-border, .end-box { position: relative; z-index: 1; }
+
+  .blink { animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .connecting-dots::after {
+    content: '';
+    animation: dots 1.5s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #111; }
+  ::-webkit-scrollbar-thumb { background: #555; }
+
+  /* ===== LOBBY CHAT ===== */
+  .lobby-chat {
+    margin-top: 12px;
+    border: 2px solid #333;
+    background: #0a0a08;
+  }
+  .lobby-chat-log {
+    height: 80px;
+    overflow-y: auto;
+    padding: 6px 10px;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    color: #aaa;
+    line-height: 1.4;
+  }
+  .lobby-chat-log .chat-msg { margin: 1px 0; }
+  .lobby-chat-log .chat-msg .chat-name { color: var(--white); }
+  .lobby-chat-log .chat-msg.system { color: #666; font-style: italic; }
+  .lobby-chat-row {
+    display: flex;
+    border-top: 2px solid #222;
+  }
+  .chat-input {
+    flex: 1;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    background: transparent;
+    border: none;
+    color: var(--white);
+    padding: 6px 10px;
+    outline: none;
+  }
+  .chat-send-btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    background: #222;
+    border: none;
+    border-left: 2px solid #333;
+    color: #888;
+    padding: 0 10px;
+    cursor: pointer;
+  }
+  .chat-send-btn:hover { background: #333; color: var(--white); }
+
+  /* ===== IN-GAME CHAT ===== */
+  #ingame-chat {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    width: 260px;
+    z-index: 200;
+    pointer-events: none;
+  }
+  #ingame-chat-log {
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 4px 8px;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    line-height: 1.4;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  #ingame-chat-log .chat-msg {
+    background: rgba(0,0,0,0.55);
+    padding: 1px 4px;
+    margin: 1px 0;
+    max-width: fit-content;
+  }
+  #ingame-chat-log .chat-msg .chat-name { font-weight: bold; }
+  #ingame-chat-row {
+    display: flex;
+    pointer-events: all;
+    margin-top: 4px;
+    background: rgba(0,0,0,0.7);
+    border: 2px solid #444;
+    display: none;
+  }
+  #ingame-chat-row.visible { display: flex; }
+  #ingame-chat-input {
+    flex: 1;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    background: transparent;
+    border: none;
+    color: var(--white);
+    padding: 4px 8px;
+    outline: none;
+  }
+
+  /* ===== KILL FEED ===== */
+  #kill-feed {
+    position: absolute;
+    top: 70px;
+    right: 12px;
+    width: 200px;
+    z-index: 200;
+    pointer-events: none;
+  }
+  .kill-entry {
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    background: rgba(0,0,0,0.65);
+    border-left: 3px solid var(--accent);
+    padding: 3px 8px;
+    margin-bottom: 3px;
+    color: #ccc;
+    animation: killFadeIn 0.15s ease-out;
+    text-align: right;
+  }
+  @keyframes killFadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+
+  /* ===== SPECTATOR BANNER ===== */
+  #spectator-banner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    color: rgba(255,255,255,0.5);
+    background: rgba(0,0,0,0.5);
+    border: 2px solid #444;
+    padding: 8px 20px;
+    pointer-events: none;
+    z-index: 150;
+    display: none;
+    letter-spacing: 3px;
+  }
+
+  /* ===== ZONE WARNING ===== */
+  #zone-warning {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    color: #ff3020;
+    background: rgba(0,0,0,0.7);
+    border: 3px solid #ff3020;
+    padding: 10px 24px;
+    pointer-events: none;
+    z-index: 300;
+    display: none;
+    letter-spacing: 2px;
+    animation: zonePulse 0.5s step-end infinite;
+  }
+  @keyframes zonePulse { 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<div class="pixel-bg"></div>
+
+<!-- ===== LOBBY SCREEN ===== -->
+<div id="lobby-screen" class="screen active">
+  <div class="lobby-border">
+    <div class="game-title">MECH NINJA</div>
+    <div class="game-subtitle">TEAM BRAWL</div>
+    <div class="pixel-divider"></div>
+
+    <div id="name-section">
+      <div class="lobby-info-row"><span>CALLSIGN</span></div>
+      <input class="name-input" id="name-input" type="text" maxlength="12" placeholder="ENTER NAME..." />
+    </div>
+
+    <div id="share-section" style="display:none">
+      <div class="lobby-info-row">
+        <span>SHARE LINK</span>
+        <span style="font-family:VT323;font-size:13px;color:#666">CLICK TO COPY</span>
+      </div>
+      <div class="share-box" id="share-link" onclick="copyLink()">—</div>
+    </div>
+
+    <div class="team-display">
+      <div class="team-box black-team">
+        <div class="team-name">
+          <span class="team-dot black"></span>
+          TEAM WHITE
+        </div>
+        <div class="player-list" id="white-list">—</div>
+      </div>
+      <div class="team-box white-team">
+        <div class="team-name">
+          <span class="team-dot white"></span>
+          TEAM BLACK
+        </div>
+        <div class="player-list" id="black-list">—</div>
+      </div>
+    </div>
+
+    <div class="lobby-info-row">
+      <span>PLAYERS</span>
+      <span id="player-count">0 / 16</span>
+    </div>
+
+    <div class="pixel-divider"></div>
+
+    <button class="pixel-btn" id="join-btn" onclick="joinLobby()">▶ JOIN MATCH</button>
+    <button class="pixel-btn start-btn disabled" id="start-btn" onclick="startGame()" style="display:none">⚡ START GAME</button>
+
+    <div class="status-msg" id="status-msg"><span class="blink">█</span> AWAITING PLAYERS</div>
+
+    <div class="lobby-chat" id="lobby-chat-box" style="display:none">
+      <div class="lobby-chat-log" id="lobby-chat-log"></div>
+      <div class="lobby-chat-row">
+        <input class="chat-input" id="lobby-chat-input" type="text" maxlength="80" placeholder="SAY SOMETHING..." />
+        <button class="chat-send-btn" onclick="sendLobbyChat()">SEND</button>
+      </div>
+    </div>
+
+  </div><!-- /.lobby-border -->
+</div><!-- /#lobby-screen -->
+
+<!-- ===== GAME SCREEN ===== -->
+<div id="game-screen" class="screen">
+  <canvas id="game-canvas"></canvas>
+  <div id="hud">
+    <div class="hud-panel black-panel" id="hud-white">
+      <div style="color:#ddd;margin-bottom:3px">◈ TEAM WHITE</div>
+      <div id="white-alive" style="font-family:VT323;font-size:16px;">— alive</div>
+      <div id="white-kills" style="font-family:VT323;font-size:14px;color:#aaa;">0 kills</div>
+    </div>
+    <div class="hud-panel center-panel">
+      <span class="hud-timer" id="hud-timer">3:00</span>
+      <div style="font-size:6px;color:#aaa;margin-top:2px" id="tileset-name">TILESET</div>
+      <div style="font-size:6px;color:#aaa;margin-top:2px" id="zone-shrink-hud"></div>
+      <div style="font-size:6px;color:#666;margin-top:4px">PULSE CD</div>
+      <div class="cooldown-bar"><div class="cooldown-fill ready" id="cd-bar" style="width:100%"></div></div>
+    </div>
+    <div class="hud-panel white-panel" id="hud-black">
+      <div style="color:#ddd;margin-bottom:3px">◈ TEAM BLACK</div>
+      <div id="black-alive" style="font-family:VT323;font-size:16px;">— alive</div>
+      <div id="black-kills" style="font-family:VT323;font-size:14px;color:#aaa;">0 kills</div>
+    </div>
+  </div>
+  <!-- Kill feed -->
+  <div id="kill-feed"></div>
+  <!-- In-game team chat -->
+  <div id="ingame-chat">
+    <div id="ingame-chat-log"></div>
+    <div id="ingame-chat-row">
+      <input id="ingame-chat-input" type="text" maxlength="80" placeholder="TEAM CHAT (ENTER)..." />
+    </div>
+  </div>
+  <!-- Spectator banner -->
+  <div id="spectator-banner">👁 SPECTATING</div>
+  <!-- Zone warning -->
+  <div id="zone-warning">⚠ LEAVE THE ZONE!</div>
+  <!-- T key chat hint -->
+  <div id="chat-hint" style="position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:14px;color:rgba(255,255,255,0.45);pointer-events:none;z-index:150;letter-spacing:2px;">PRESS T — TEAM CHAT</div>
+</div>
+
+<!-- ===== END SCREEN ===== -->
+<div id="end-screen" class="screen">
+  <div class="end-box">
+    <div class="end-title">MATCH OVER</div>
+    <div class="end-winner" id="end-winner">—</div>
+    <div class="pixel-divider"></div>
+    <table class="scoreboard">
+      <thead>
+        <tr>
+          <th>#</th><th>PLAYER</th><th>TEAM</th><th>ELIMS</th><th>STATUS</th>
+        </tr>
+      </thead>
+      <tbody id="score-body"></tbody>
+    </table>
+    <div class="pixel-divider"></div>
+    <button class="pixel-btn" onclick="backToLobby()">↩ BACK TO LOBBY</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  MECH NINJA — MULTIPLAYER ENGINE
+//  Architecture: PeerJS mesh (host = first player)
+// ============================================================
+
+const GAME_DURATION = 180; // 3 minutes
+const PULSE_COOLDOWN = 3000;
+const PULSE_RADIUS = 42;   // ~halved from 80
+const PULSE_DURATION = 400;
+const PLAYER_SPEED = 2.5;
+const PLAYER_RADIUS = 8;
+const TILE_SIZE = 32;
+const TILESET_MIN = 5000;  // 5 seconds
+const TILESET_MAX = 30000; // 30 seconds
+const MAP_W = 35;  // ~1.4x original 25
+const MAP_H = 28;  // ~1.4x original 20
+const CANVAS_W = MAP_W * TILE_SIZE;
+const CANVAS_H = MAP_H * TILE_SIZE;
+
+// Dust particles (local rendering only)
+let dustParticles = [];
+
+// ─── Zone / shrink state ──────────────────────────────────────
+let zoneLeft = 0, zoneTop = 0, zoneRight = 0, zoneBottom = 0; // in pixels
+let zoneShrinkStartTime = 0;
+const ZONE_SHRINK_START = 60;   // seconds before first shrink
+const ZONE_SHRINK_DURATION = 5; // seconds each shrink pulse lasts
+const ZONE_WARN_DURATION = 3;   // seconds of warning pause between pulses
+const ZONE_CYCLE = ZONE_SHRINK_DURATION + ZONE_WARN_DURATION; // 8s per cycle
+const ZONE_MAX_SHRINK_PX = 16;  // pixels per shrink pulse per side
+let zoneTotalShrunk = 0;        // accumulated shrink in pixels
+let zoneWarningShown = false;
+
+// ─── Spectator state ─────────────────────────────────────────
+let isSpectator = false;
+
+// ─── Kill feed ────────────────────────────────────────────────
+let killFeedEntries = []; // {text, born}
+
+// ─── Chat ─────────────────────────────────────────────────────
+let chatOpen = false;
+
+// ─── State ───────────────────────────────────────────────────
+let myId = null;
+let myName = '';
+let isHost = false;
+let hostPeer = null;
+let hostConn = null; // client→host connection
+let peerConns = {}; // host→clients connections
+let lobbyId = null;
+
+let gameState = null; // authoritative on host, synced on clients
+let localInput = { up:false, down:false, left:false, right:false, pulse:false };
+let lastPulseTime = -PULSE_COOLDOWN;
+let animFrame = null;
+let gameStartTime = 0;
+let tilesetTimer = 0;
+let tilesetDuration = TILESET_MIN;
+let currentTileset = 'white'; // 'white' or 'black'
+let currentMap = [];
+let tileChangeTimer = 0;
+
+// Canvas
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+
+// ─── PIXEL ART PALETTES ───────────────────────────────────────
+const PALETTES = {
+  white: {
+    floor: ['#e8e8e0','#d8d8d0','#e0e0d8','#ececE4'],
+    wall:  ['#3a3a38','#2e2e2c','#444440','#383836'],
+    accent:['#b8b8b0','#c8c8c0'],
+    bg:    '#c8c8c0',
+    border:'#888880',
+  },
+  black: {
+    floor: ['#181810','#1e1e16','#141410','#202018'],
+    wall:  ['#d0d0c8','#c0c0b8','#dcdcd4','#c8c8c0'],
+    accent:['#484840','#383830'],
+    bg:    '#101008',
+    border:'#505048',
+  }
+};
+
+// ─── MAP GENERATION ──────────────────────────────────────────
+// Layout styles: 'rooms', 'maze', 'open', 'corridors', 'fortress'
+const MAP_STYLES = ['rooms', 'maze', 'open', 'corridors', 'fortress'];
+
+function generateMap(seed, theme) {
+  const rng = seededRandom(seed);
+  const style = MAP_STYLES[Math.floor(rng() * MAP_STYLES.length)];
+  return generateMapStyle(seed, theme, style);
+}
+
+function generateMapStyle(seed, theme, style) {
+  const map = [];
+  const rng = seededRandom(seed + 1);
+
+  // Fill with floor
+  for (let y = 0; y < MAP_H; y++) {
+    map[y] = [];
+    for (let x = 0; x < MAP_W; x++) map[y][x] = 0;
+  }
+
+  // Border walls always present
+  for (let y = 0; y < MAP_H; y++)
+    for (let x = 0; x < MAP_W; x++)
+      if (x===0||x===MAP_W-1||y===0||y===MAP_H-1) map[y][x] = 1;
+
+  if (style === 'rooms') {
+    // Classic rooms with doors — more rooms on bigger map
+    const numRooms = 6 + Math.floor(rng() * 6);
+    for (let r = 0; r < numRooms; r++) {
+      const rw = 4 + Math.floor(rng() * 7);
+      const rh = 4 + Math.floor(rng() * 5);
+      const rx = 2 + Math.floor(rng() * (MAP_W - rw - 4));
+      const ry = 2 + Math.floor(rng() * (MAP_H - rh - 4));
+      for (let y=ry; y<ry+rh; y++)
+        for (let x=rx; x<rx+rw; x++)
+          if (y===ry||y===ry+rh-1||x===rx||x===rx+rw-1) map[y][x] = 1;
+      // 1-2 door openings per room
+      const numDoors = 1 + Math.floor(rng() * 2);
+      for (let d=0; d<numDoors; d++) {
+        const side = Math.floor(rng()*4);
+        if (side===0) { const dx=rx+1+Math.floor(rng()*(rw-2)); map[ry][dx]=0; if(ry>1)map[ry-1][dx]=0; }
+        if (side===1) { const dx=rx+1+Math.floor(rng()*(rw-2)); map[ry+rh-1][dx]=0; if(ry+rh<MAP_H-1)map[ry+rh][dx]=0; }
+        if (side===2) { const dy=ry+1+Math.floor(rng()*(rh-2)); map[dy][rx]=0; if(rx>1)map[dy][rx-1]=0; }
+        if (side===3) { const dy=ry+1+Math.floor(rng()*(rh-2)); map[dy][rx+rw-1]=0; if(rx+rw<MAP_W-1)map[dy][rx+rw]=0; }
+      }
+    }
+    // Scatter pillars
+    const numPillars = 8 + Math.floor(rng() * 10);
+    for (let p=0; p<numPillars; p++) {
+      const px=2+Math.floor(rng()*(MAP_W-4)), py=2+Math.floor(rng()*(MAP_H-4));
+      if (map[py][px]===0) map[py][px]=2;
+    }
+
+  } else if (style === 'maze') {
+    // Dense wall maze with winding corridors
+    // Fill interior with walls, then carve paths
+    for (let y=2; y<MAP_H-2; y++)
+      for (let x=2; x<MAP_W-2; x++)
+        if (y%2===0&&x%2===0) map[y][x]=1;
+    // Carve random connections
+    const numCarves = 30 + Math.floor(rng() * 20);
+    for (let c=0; c<numCarves; c++) {
+      const cx=2+Math.floor(rng()*(MAP_W-4)), cy=2+Math.floor(rng()*(MAP_H-4));
+      if (map[cy][cx]===1) map[cy][cx]=0;
+    }
+    // Open corridors horizontally
+    const numCorr = 3 + Math.floor(rng()*3);
+    for (let c=0; c<numCorr; c++) {
+      const cy=3+Math.floor(rng()*(MAP_H-6));
+      for (let x=1; x<MAP_W-1; x++) map[cy][x]=0;
+    }
+
+  } else if (style === 'open') {
+    // Mostly open with scattered obstacle clusters
+    const numClusters = 5 + Math.floor(rng()*6);
+    for (let c=0; c<numClusters; c++) {
+      const cx=3+Math.floor(rng()*(MAP_W-6)), cy=3+Math.floor(rng()*(MAP_H-6));
+      const ctype = Math.floor(rng()*3);
+      if (ctype===0) {
+        // L-shape
+        for(let i=0;i<3+Math.floor(rng()*3);i++) map[cy][cx+i]=1;
+        for(let i=0;i<3+Math.floor(rng()*3);i++) map[cy+i][cx]=1;
+      } else if (ctype===1) {
+        // Small box with opening
+        const bw=3+Math.floor(rng()*3), bh=3+Math.floor(rng()*2);
+        for(let y=cy;y<cy+bh&&y<MAP_H-1;y++)
+          for(let x=cx;x<cx+bw&&x<MAP_W-1;x++)
+            if(y===cy||y===cy+bh-1||x===cx||x===cx+bw-1) map[y][x]=1;
+        // opening
+        map[cy+Math.floor(bh/2)][cx]=0;
+      } else {
+        // Pillar cluster
+        for(let i=0;i<4+Math.floor(rng()*4);i++) {
+          const px=cx+Math.floor(rng()*5)-2, py=cy+Math.floor(rng()*5)-2;
+          if(px>0&&px<MAP_W-1&&py>0&&py<MAP_H-1&&map[py][px]===0) map[py][px]=2;
+        }
+      }
+    }
+
+  } else if (style === 'corridors') {
+    // Grid of walls with corridors between them
+    const gridW = 5 + Math.floor(rng()*3);
+    const gridH = 4 + Math.floor(rng()*3);
+    for (let gy=1; gy<MAP_H-1; gy+=gridH)
+      for (let x=1; x<MAP_W-1; x++) map[gy][x]=1;
+    for (let gx=1; gx<MAP_W-1; gx+=gridW)
+      for (let y=1; y<MAP_H-1; y++) map[y][gx]=1;
+    // Punch openings in each wall segment
+    for (let y=1; y<MAP_H-1; y++) {
+      for (let x=1; x<MAP_W-1; x++) {
+        if (map[y][x]===1 && rng()<0.25) map[y][x]=0;
+      }
+    }
+    // Add pillars in cells
+    const numPillars = 10+Math.floor(rng()*8);
+    for(let p=0;p<numPillars;p++){
+      const px=2+Math.floor(rng()*(MAP_W-4)), py=2+Math.floor(rng()*(MAP_H-4));
+      if(map[py][px]===0) map[py][px]=2;
+    }
+
+  } else if (style === 'fortress') {
+    // Concentric rings of walls with gateways
+    const rings = 2 + Math.floor(rng()*2);
+    for (let r=1; r<=rings; r++) {
+      const margin = r * Math.floor(Math.min(MAP_W,MAP_H) / ((rings+1)*2));
+      const x1=margin, y1=margin, x2=MAP_W-1-margin, y2=MAP_H-1-margin;
+      if(x1>=x2||y1>=y2) continue;
+      for(let x=x1;x<=x2;x++) { map[y1][x]=1; map[y2][x]=1; }
+      for(let y=y1;y<=y2;y++) { map[y][x1]=1; map[y][x2]=1; }
+      // Gateways on each side
+      const gx=x1+Math.floor((x2-x1)/2), gy=y1+Math.floor((y2-y1)/2);
+      map[y1][gx]=0; map[y1][gx+1]=0;
+      map[y2][gx]=0; map[y2][gx+1]=0;
+      map[gy][x1]=0; map[gy+1][x1]=0;
+      map[gy][x2]=0; map[gy+1][x2]=0;
+    }
+    // Pillars in quadrants
+    const numPillars=12+Math.floor(rng()*8);
+    for(let p=0;p<numPillars;p++){
+      const px=2+Math.floor(rng()*(MAP_W-4)), py=2+Math.floor(rng()*(MAP_H-4));
+      if(map[py][px]===0) map[py][px]=2;
+    }
+  }
+
+  // Always clear spawn zones
+  for (let y=1;y<5;y++) for (let x=1;x<5;x++) map[y][x]=0;
+  for (let y=MAP_H-5;y<MAP_H-1;y++) for (let x=MAP_W-5;x<MAP_W-1;x++) map[y][x]=0;
+
+  return map;
+}
+
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+function isWall(map, x, y) {
+  const tx = Math.floor(x / TILE_SIZE);
+  const ty = Math.floor(y / TILE_SIZE);
+  if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return true;
+  return map[ty][tx] >= 1;
+}
+
+function canMoveTo(map, x, y, r) {
+  const pts = [
+    [x-r, y-r],[x+r, y-r],[x-r, y+r],[x+r, y+r],
+    [x, y-r],[x, y+r],[x-r, y],[x+r, y]
+  ];
+  return pts.every(([px,py]) => !isWall(map, px, py));
+}
+
+// ─── DRAWING ─────────────────────────────────────────────────
+function drawMap(map, theme) {
+  const pal = PALETTES[theme];
+  // Background
+  ctx.fillStyle = pal.bg;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const t = map[y][x];
+      const px = x * TILE_SIZE, py = y * TILE_SIZE;
+      const ts = TILE_SIZE;
+
+      if (t === 0) {
+        // Floor tile with subtle checkerboard
+        const checker = (x + y) % 2;
+        ctx.fillStyle = pal.floor[checker];
+        ctx.fillRect(px, py, ts, ts);
+        // Pixel grain
+        ctx.fillStyle = pal.floor[2 + checker];
+        ctx.fillRect(px+2, py+2, 2, 2);
+        ctx.fillRect(px+ts-4, py+ts-4, 2, 2);
+      } else if (t === 1) {
+        // Wall
+        ctx.fillStyle = pal.wall[0];
+        ctx.fillRect(px, py, ts, ts);
+        // Bevel highlight
+        ctx.fillStyle = pal.wall[2];
+        ctx.fillRect(px, py, ts, 3);
+        ctx.fillRect(px, py, 3, ts);
+        ctx.fillStyle = pal.wall[1];
+        ctx.fillRect(px, py+ts-3, ts, 3);
+        ctx.fillRect(px+ts-3, py, 3, ts);
+        // Pixel detail
+        ctx.fillStyle = pal.wall[3];
+        ctx.fillRect(px+4, py+4, 4, 4);
+        ctx.fillRect(px+ts-8, py+ts-8, 4, 4);
+      } else if (t === 2) {
+        // Pillar
+        ctx.fillStyle = pal.floor[0];
+        ctx.fillRect(px, py, ts, ts);
+        ctx.fillStyle = pal.wall[0];
+        ctx.fillRect(px+4, py+4, ts-8, ts-8);
+        ctx.fillStyle = pal.accent[0];
+        ctx.fillRect(px+8, py+8, ts-16, ts-16);
+        // Corner pixels
+        ctx.fillStyle = pal.wall[2];
+        ctx.fillRect(px+4, py+4, 4, 4);
+        ctx.fillRect(px+ts-8, py+4, 4, 4);
+        ctx.fillRect(px+4, py+ts-8, 4, 4);
+        ctx.fillRect(px+ts-8, py+ts-8, 4, 4);
+      }
+    }
+  }
+
+  // Grid lines (subtle)
+  ctx.strokeStyle = theme==='white' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let x=0;x<=MAP_W;x++) { ctx.beginPath(); ctx.moveTo(x*TILE_SIZE,0); ctx.lineTo(x*TILE_SIZE,CANVAS_H); ctx.stroke(); }
+  for (let y=0;y<=MAP_H;y++) { ctx.beginPath(); ctx.moveTo(0,y*TILE_SIZE); ctx.lineTo(CANVAS_W,y*TILE_SIZE); ctx.stroke(); }
+}
+
+// ─── MECH PIXEL ART DATA ─────────────────────────────────────
+const MECH_MAP = [
+  '........HHHH........',
+  '......HHHHHHHH......',
+  '......HVVVVVVH......',
+  '......HVVVVVVH......',
+  '.....SHHHHHHHHSS....',
+  '....SSTTTTTTTSS.....',
+  '....SSTTTTTTTSS.....',
+  '...WWTTEETTTTTWW....',
+  '...WWTTEETTTTTWW....',
+  '...WWWTTTTTTTWWW....',
+  '....GWTTTTTTTGW.....',
+  '....GGTTTTTGGG......',
+  '.....TTTTTTTTT......',
+  '.....LLTTTTTLL......',
+  '....LLLTTTTLLL......',
+  '....LLL....LLL......',
+  '....LKL....LKL......',
+  '....LLL....LLL......',
+  '....FFF....FFF......',
+  '.....FF....FF.......',
+];
+
+// Team White — visible on dark tileset
+const MECH_W = {
+  H:'#d0d0c8', V:'#7ac4ff', S:'#b8b8b0', T:'#c0c0b8',
+  W:'#a8a8a0', G:'#888880', L:'#b0b0a8', K:'#989890',
+  F:'#888880', E:'#ff7733',
+};
+// Team Black — visible on light tileset
+const MECH_B = {
+  H:'#303028', V:'#cc2200', S:'#383830', T:'#282820',
+  W:'#404038', G:'#1a1a14', L:'#323228', K:'#242420',
+  F:'#1c1c16', E:'#dd8800',
+};
+// White camo — blends into white floor #e0e0d8
+const MECH_WC = {
+  H:'#e0e0d8', V:'#d8dcd8', S:'#e0e0d8', T:'#e0e0d8',
+  W:'#e0e0d8', G:'#e0e0d8', L:'#e0e0d8', K:'#e0e0d8',
+  F:'#e0e0d8', E:'#dcdcd4',
+};
+// Black camo — blends into black floor #181810
+const MECH_BC = {
+  H:'#181810', V:'#201008', S:'#181810', T:'#181810',
+  W:'#181810', G:'#181810', L:'#181810', K:'#181810',
+  F:'#181810', E:'#201808',
+};
+
+// Mech is 20×20 pixels drawn at sub-pixel scale, centered on player
+// Scale 0.7 → rendered at 14×14px which fits inside PLAYER_RADIUS=8 (16px wide)
+const MECH_SCALE  = 0.7;
+const MECH_W_PX   = Math.round(20 * MECH_SCALE);
+const MECH_H_PX   = Math.round(20 * MECH_SCALE);
+
+let mechVisorTick = 0;
+
+// Per-player walk state (local rendering only, keyed by player id)
+const mechWalkState = {}; // { [id]: { dist: 0, lastX: 0, lastY: 0 } }
+
+function getMechWalkPhase(playerId, px, py) {
+  if (!mechWalkState[playerId]) {
+    mechWalkState[playerId] = { dist: 0, lastX: px, lastY: py };
+  }
+  const s = mechWalkState[playerId];
+  const dx = px - s.lastX;
+  const dy = py - s.lastY;
+  const moved = Math.sqrt(dx*dx + dy*dy);
+  s.dist += moved;
+  s.lastX = px;
+  s.lastY = py;
+  // Walk cycle: legs alternate every ~6px of travel
+  return s.dist;
+}
+
+function drawMechSprite(cx, cy, colors, animTick, walkDist) {
+  const s    = MECH_SCALE;
+  const ox   = cx - (20 * s) / 2;
+  const oy   = cy - (20 * s) / 2;
+  const visorPulse = 0.55 + 0.45 * Math.sin(animTick * 0.07);
+
+  // Walk cycle: legs bob offset alternates between -1 and +1 pixel every 6px
+  const walkCycle  = Math.floor(walkDist / 6) % 2; // 0 or 1
+  const legOffsetL = walkCycle === 0 ?  1 : -1;    // left legs
+  const legOffsetR = walkCycle === 0 ? -1 :  1;    // right legs (opposite phase)
+
+  for (let row = 0; row < MECH_MAP.length; row++) {
+    const line = MECH_MAP[row];
+    for (let col = 0; col < line.length; col++) {
+      const ch = line[col];
+      if (ch === '.') continue;
+      const color = colors[ch];
+      if (!color) continue;
+
+      let px = ox + col * s;
+      let py = oy + row * s;
+
+      // Apply leg walk offset to L, K, F rows (rows 13-19)
+      if (row >= 13 && (ch === 'L' || ch === 'K' || ch === 'F')) {
+        // Determine left vs right side: col < 10 = left, col >= 10 = right
+        const isLeft = col < 10;
+        py += (isLeft ? legOffsetL : legOffsetR) * s;
+      }
+
+      const pw = Math.max(1, Math.round((col + 1) * s) - Math.round(col * s));
+      const ph = Math.max(1, Math.round((row + 1) * s) - Math.round(row * s));
+      const rpx = Math.round(px);
+      const rpy = Math.round(py);
+
+      if (ch === 'V') {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.45 + 0.55 * visorPulse;
+        ctx.fillRect(rpx, rpy, pw, ph);
+        ctx.globalAlpha = 0.07 * visorPulse;
+        ctx.fillRect(rpx - 1, rpy - 1, pw + 2, ph + 2);
+        ctx.globalAlpha = 1;
+      } else if (ch === 'E') {
+        const flicker = 0.4 + 0.6 * Math.sin(animTick * 0.2 + col * 1.3);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = flicker;
+        ctx.fillRect(rpx, rpy, pw, ph);
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = color;
+        ctx.fillRect(rpx, rpy, pw, ph);
+      }
+    }
+  }
+}
+
+function drawPlayers(players, pulses, theme, myPlayerId) {
+  mechVisorTick++;
+
+  // Draw pulses first
+  pulses.forEach(p => {
+    const age = Date.now() - p.startTime;
+    const prog = Math.min(age / PULSE_DURATION, 1);
+    const r = prog * PULSE_RADIUS;
+    const alpha = (1 - prog) * 0.7;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const psize = r * 2;
+    ctx.strokeStyle = '#a0a098';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(p.x - r, p.y - r, psize, psize);
+    ctx.strokeStyle = theme === 'white' ? '#666660' : '#c0c0b8';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(p.x - r * 0.7, p.y - r * 0.7, r * 1.4, r * 1.4);
+    ctx.restore();
+  });
+
+  // Draw mech players
+  Object.values(players).forEach(p => {
+    if (p.eliminated) return;
+
+    const isMe = p.id === myPlayerId;
+    const isWhiteTeam = p.team === 'white';
+
+    // Camouflage: team matches current tileset → invisible
+    const isCamouflaged = (isWhiteTeam && theme === 'white') || (!isWhiteTeam && theme === 'black');
+
+    if (!isMe && isCamouflaged) return; // skip entirely — perfect camo
+
+    ctx.save();
+
+    // Pick color scheme
+    let colors;
+    if (isCamouflaged) {
+      colors = isWhiteTeam ? MECH_WC : MECH_BC; // camo for own player (so they can see themselves faintly)
+    } else {
+      colors = isWhiteTeam ? MECH_W : MECH_B;
+    }
+
+    // Shadow beneath mech (only when visible)
+    if (!isCamouflaged) {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(p.x - 9, p.y - 8, 20, 20);
+    }
+
+    const walkDist = getMechWalkPhase(p.id, p.x, p.y);
+    drawMechSprite(p.x, p.y, colors, mechVisorTick, walkDist);
+
+    // "You" indicator — blinking orange corner dots
+    if (isMe) {
+      const blink = Math.floor(Date.now() / 300) % 2;
+      if (blink) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ff6b35';
+        const pr = PLAYER_RADIUS + 2;
+        ctx.fillRect(p.x - pr - 2, p.y - pr - 2, 3, 3);
+        ctx.fillRect(p.x + pr - 1, p.y - pr - 2, 3, 3);
+        ctx.fillRect(p.x - pr - 2, p.y + pr - 1, 3, 3);
+        ctx.fillRect(p.x + pr - 1, p.y + pr - 1, 3, 3);
+      }
+    }
+
+    // Name tag — hidden when camouflaged unless it's you
+    if (!isCamouflaged || isMe) {
+      ctx.globalAlpha = 1;
+      ctx.font = '6px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(p.x - 20, p.y - PLAYER_RADIUS - 16, 40, 10);
+      ctx.fillStyle = isWhiteTeam ? '#e0e0d8' : '#aaa898';
+      ctx.fillText(p.name.slice(0, 6), p.x, p.y - PLAYER_RADIUS - 8);
+    }
+
+    ctx.restore();
+  });
+}
+
+// ─── TILESET TRANSITION ───────────────────────────────────────
+let tileFade = 0; // 0-1, when > 0 draw fade overlay
+let tileTransitioning = false;
+
+function drawTileFade(theme) {
+  if (tileFade <= 0) return;
+  const col = theme === 'white' ? `rgba(240,240,232,${tileFade})` : `rgba(10,10,8,${tileFade})`;
+  ctx.fillStyle = col;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+}
+
+// ─── GAME LOOP (CLIENT-SIDE RENDERING) ───────────────────────
+let lastFrame = 0;
+
+function gameLoop(ts) {
+  if (!gameState) { animFrame = requestAnimationFrame(gameLoop); return; }
+
+  const dt = Math.min(ts - lastFrame, 50);
+  lastFrame = ts;
+
+  // -- Host: process physics --
+  if (isHost) {
+    hostUpdatePhysics(dt);
+    broadcastState();
+  }
+
+  // -- Update tileset fade --
+  if (tileTransitioning) {
+    tileFade = Math.min(tileFade + dt/200, 1);
+    if (tileFade >= 1) {
+      tileTransitioning = false;
+    }
+  } else {
+    tileFade = Math.max(tileFade - dt/200, 0);
+  }
+
+  // -- Render --
+  drawMap(currentMap, currentTileset);
+  drawDust(currentTileset);
+
+  // Pulses
+  const now = Date.now();
+  const alivePulses = (gameState.pulses||[]).filter(p => now - p.startTime < PULSE_DURATION);
+  if (isHost && gameState) gameState.pulses = alivePulses;
+  drawPlayers(gameState.players, alivePulses, currentTileset, isSpectator ? null : myId);
+  drawZone();
+  drawTileFade(currentTileset);
+
+  // -- HUD --
+  const elapsed = (now - gameStartTime) / 1000;
+  const remaining = Math.max(0, GAME_DURATION - elapsed);
+  const mins = Math.floor(remaining/60);
+  const secs = Math.floor(remaining%60);
+  document.getElementById('hud-timer').textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
+  document.getElementById('tileset-name').textContent = `${currentTileset.toUpperCase()} ZONE`;
+
+  // Zone shrink HUD
+  const zoneHud = document.getElementById('zone-shrink-hud');
+  const zonePhase = getZonePhase(elapsed);
+  if (zonePhase === 'inactive') {
+    const countdown = Math.ceil(ZONE_SHRINK_START - elapsed);
+    zoneHud.textContent = `ZONE IN ${countdown}s`;
+    zoneHud.style.color = '#aaa';
+  } else if (zonePhase === 'shrinking') {
+    zoneHud.textContent = '🔴 ZONE CLOSING';
+    zoneHud.style.color = '#ff3020';
+  } else {
+    const cd = getZoneWarningCountdown(elapsed);
+    zoneHud.textContent = `⚠ NEXT WAVE IN ${cd}s`;
+    zoneHud.style.color = '#ffaa00';
+  }
+
+  // Zone warning popup for my player
+  const zoneWarningEl = document.getElementById('zone-warning');
+  const myPlayer = gameState.players[myId];
+  const inDanger = myPlayer && !myPlayer.eliminated && !isSpectator && isOutsideZone(myPlayer.x, myPlayer.y);
+  zoneWarningEl.style.display = inDanger ? 'block' : 'none';
+
+  // Update kill feed
+  updateKillFeed();
+
+  // Spectator banner
+  document.getElementById('spectator-banner').style.display = isSpectator ? 'block' : 'none';
+
+  // T key hint (top corner, fades after 20s)
+  const chatHintEl = document.getElementById('chat-hint');
+  if (chatHintEl) {
+    chatHintEl.style.display = (elapsed < 20 && !isSpectator) ? 'block' : 'none';
+  }
+
+  // Cooldown bar
+  const cdElapsed = now - lastPulseTime;
+  const cdPct = Math.min(cdElapsed / PULSE_COOLDOWN, 1);
+  const cdBar = document.getElementById('cd-bar');
+  cdBar.style.width = (cdPct * 100) + '%';
+  cdBar.className = 'cooldown-fill' + (cdPct >= 1 ? ' ready' : '');
+
+  // Team counts
+  const players = Object.values(gameState.players);
+  const whitePlayers = players.filter(p=>p.team==='white');
+  const blackPlayers = players.filter(p=>p.team==='black');
+  const whiteAlive = whitePlayers.filter(p=>!p.eliminated).length;
+  const blackAlive = blackPlayers.filter(p=>!p.eliminated).length;
+  const whiteKills = whitePlayers.reduce((s,p)=>s+p.kills,0);
+  const blackKills = blackPlayers.reduce((s,p)=>s+p.kills,0);
+  document.getElementById('white-alive').textContent = `${whiteAlive} alive`;
+  document.getElementById('black-alive').textContent = `${blackAlive} alive`;
+  document.getElementById('white-kills').textContent = `${whiteKills} kills`;
+  document.getElementById('black-kills').textContent = `${blackKills} kills`;
+
+  // -- Check win conditions (host only) --
+  if (isHost) {
+    // Check if host player just got eliminated → spectate
+    const hostPlayer = gameState.players[myId];
+    if (hostPlayer && hostPlayer.eliminated && !isSpectator) {
+      isSpectator = true;
+    }
+    if (whiteAlive === 0 || blackAlive === 0 || remaining <= 0) {
+      endGame();
+      return;
+    }
+  }
+
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// ─── HOST PHYSICS ─────────────────────────────────────────────
+function hostUpdatePhysics(dt) {
+  const now = Date.now();
+  const elapsed = (now - gameStartTime) / 1000;
+
+  // Tileset timer
+  tileChangeTimer -= dt;
+  if (tileChangeTimer <= 0) {
+    switchTileset();
+  }
+
+  // Zone shrink — update zone bounds
+  updateZoneBounds(elapsed);
+
+  // Eliminate players outside zone only during active shrink phase
+  const phase = getZonePhase(elapsed);
+  if (phase === 'shrinking' || (phase === 'warning' && zoneLeft > 0)) {
+    Object.values(gameState.players).forEach(p => {
+      if (p.eliminated) return;
+      if (isOutsideZone(p.x, p.y)) {
+        p.eliminated = true;
+        addKillFeedEntry(`${p.name} CONSUMED BY ZONE`);
+        broadcastMsg({ type: 'killfeed', text: `${p.name} CONSUMED BY ZONE` });
+      }
+    });
+  }
+
+  const me = gameState.players[myId];
+  if (me && !me.eliminated) {
+    applyInput(me, localInput, dt);
+  }
+
+  // Apply inputs from clients
+  Object.values(gameState.players).forEach(p => {
+    if (p.id === myId) return;
+    if (p.pendingInput && !p.eliminated) {
+      applyInput(p, p.pendingInput, dt);
+    }
+  });
+
+  // Process pulses
+  (gameState.pulses||[]).forEach(pulse => {
+    if (pulse.processed) return;
+    if (now - pulse.startTime > PULSE_DURATION * 0.5) {
+      pulse.processed = true;
+      Object.values(gameState.players).forEach(target => {
+        if (target.eliminated || target.team === pulse.team || target.id === pulse.ownerId) return;
+        const dx = target.x - pulse.x;
+        const dy = target.y - pulse.y;
+        if (Math.abs(dx) <= PULSE_RADIUS && Math.abs(dy) <= PULSE_RADIUS) {
+          target.eliminated = true;
+          const killer = gameState.players[pulse.ownerId];
+          if (killer) {
+            killer.kills = (killer.kills||0) + 1;
+            addKillFeedEntry(`${killer.name} ▸ ${target.name}`);
+            broadcastMsg({ type: 'killfeed', text: `${killer.name} ▸ ${target.name}` });
+          }
+        }
+      });
+    }
+  });
+}
+
+
+
+function applyInput(player, input, dt) {
+  if (player.eliminated) return;
+  let nx = player.x;
+  let ny = player.y;
+  const spd = PLAYER_SPEED * (dt/16);
+  const moving = input.up || input.down || input.left || input.right;
+  if (input.up) ny -= spd;
+  if (input.down) ny += spd;
+  if (input.left) nx -= spd;
+  if (input.right) nx += spd;
+
+  const oldX = player.x, oldY = player.y;
+  if (canMoveTo(currentMap, nx, player.y, PLAYER_RADIUS-1)) player.x = nx;
+  if (canMoveTo(currentMap, player.x, ny, PLAYER_RADIUS-1)) player.y = ny;
+
+  // Spawn dust if actually moved
+  const moved = (player.x !== oldX || player.y !== oldY);
+  if (moved && Math.random() < 0.35) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.2 + Math.random() * 0.5;
+    dustParticles.push({
+      x: player.x + (Math.random()-0.5) * PLAYER_RADIUS,
+      y: player.y + (Math.random()-0.5) * PLAYER_RADIUS,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      alpha: 0.45 + Math.random() * 0.2,
+      size: 2 + Math.floor(Math.random() * 3), // pixel sizes: 2,3,4
+      born: Date.now(),
+      team: player.team
+    });
+  }
+}
+
+function drawDust(theme) {
+  const now = Date.now();
+  const DUST_LIFE = 600; // ms
+  dustParticles = dustParticles.filter(d => now - d.born < DUST_LIFE);
+  dustParticles.forEach(d => {
+    const age = now - d.born;
+    const prog = age / DUST_LIFE;
+    const alpha = d.alpha * (1 - prog);
+    // Dust color: slightly contrasting against background so it's subtle
+    let col;
+    if (theme === 'white') {
+      col = d.team === 'white' ? `rgba(180,180,172,${alpha})` : `rgba(100,100,92,${alpha})`;
+    } else {
+      col = d.team === 'black' ? `rgba(60,60,52,${alpha})` : `rgba(140,140,132,${alpha})`;
+    }
+    // Move particle
+    d.x += d.vx;
+    d.y += d.vy;
+    d.vx *= 0.92;
+    d.vy *= 0.92;
+    ctx.fillStyle = col;
+    ctx.fillRect(Math.round(d.x), Math.round(d.y), d.size, d.size);
+  });
+}
+
+// ─── ZONE FUNCTIONS ───────────────────────────────────────────
+function updateZoneBounds(elapsed) {
+  if (elapsed < ZONE_SHRINK_START) {
+    // Zone not yet active — no shrink
+    return;
+  }
+  const sinceStart = elapsed - ZONE_SHRINK_START;
+  const cyclePos = sinceStart % ZONE_CYCLE; // position within current cycle (0–8s)
+  const completedCycles = Math.floor(sinceStart / ZONE_CYCLE);
+
+  // How much has already been fully shrunk from completed cycles
+  const shrunkFromPast = completedCycles * ZONE_MAX_SHRINK_PX;
+
+  // Current cycle progress: if within shrink window (0–5s), interpolate
+  let currentShrink = 0;
+  if (cyclePos <= ZONE_SHRINK_DURATION) {
+    currentShrink = (cyclePos / ZONE_SHRINK_DURATION) * ZONE_MAX_SHRINK_PX;
+  } else {
+    currentShrink = ZONE_MAX_SHRINK_PX; // hold at full during warning gap
+  }
+
+  const totalShrink = shrunkFromPast + currentShrink;
+  zoneLeft   = totalShrink;
+  zoneTop    = totalShrink;
+  zoneRight  = CANVAS_W - totalShrink;
+  zoneBottom = CANVAS_H - totalShrink;
+}
+
+function getZonePhase(elapsed) {
+  // Returns: 'inactive' | 'shrinking' | 'warning'
+  if (elapsed < ZONE_SHRINK_START) return 'inactive';
+  const sinceStart = elapsed - ZONE_SHRINK_START;
+  const cyclePos = sinceStart % ZONE_CYCLE;
+  return cyclePos <= ZONE_SHRINK_DURATION ? 'shrinking' : 'warning';
+}
+
+function getZoneWarningCountdown(elapsed) {
+  if (elapsed < ZONE_SHRINK_START) return Math.ceil(ZONE_SHRINK_START - elapsed);
+  const sinceStart = elapsed - ZONE_SHRINK_START;
+  const cyclePos = sinceStart % ZONE_CYCLE;
+  if (cyclePos > ZONE_SHRINK_DURATION) {
+    // In warning phase — countdown to next shrink
+    return Math.ceil(ZONE_CYCLE - cyclePos);
+  }
+  return 0;
+}
+
+function isOutsideZone(px, py) {
+  if (zoneLeft === 0 && zoneTop === 0 && zoneRight === CANVAS_W && zoneBottom === CANVAS_H) return false;
+  if (zoneLeft === 0 && zoneRight === 0) return false;
+  return px < zoneLeft || px > zoneRight || py < zoneTop || py > zoneBottom;
+}
+
+function drawZone() {
+  if (zoneLeft === 0 && zoneTop === 0) return;
+  // Dark overlay outside zone
+  ctx.save();
+  ctx.fillStyle = 'rgba(180,20,10,0.22)';
+  // Top strip
+  ctx.fillRect(0, 0, CANVAS_W, zoneTop);
+  // Bottom strip
+  ctx.fillRect(0, zoneBottom, CANVAS_W, CANVAS_H - zoneBottom);
+  // Left strip
+  ctx.fillRect(0, zoneTop, zoneLeft, zoneBottom - zoneTop);
+  // Right strip
+  ctx.fillRect(zoneRight, zoneTop, CANVAS_W - zoneRight, zoneBottom - zoneTop);
+  // Animated red border
+  const t = Math.floor(Date.now() / 300) % 2;
+  ctx.strokeStyle = t ? 'rgba(255,40,20,0.9)' : 'rgba(255,40,20,0.4)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(zoneLeft, zoneTop, zoneRight - zoneLeft, zoneBottom - zoneTop);
+  ctx.restore();
+}
+
+// ─── KILL FEED ────────────────────────────────────────────────
+function addKillFeedEntry(text) {
+  killFeedEntries.push({ text, born: Date.now() });
+  if (killFeedEntries.length > 6) killFeedEntries.shift();
+  renderKillFeed();
+}
+
+function updateKillFeed() {
+  const now = Date.now();
+  const before = killFeedEntries.length;
+  killFeedEntries = killFeedEntries.filter(e => now - e.born < 4000);
+  if (killFeedEntries.length !== before) renderKillFeed();
+}
+
+function renderKillFeed() {
+  const feed = document.getElementById('kill-feed');
+  feed.innerHTML = killFeedEntries.map(e =>
+    `<div class="kill-entry">${e.text}</div>`
+  ).join('');
+}
+
+// ─── CHAT FUNCTIONS ───────────────────────────────────────────
+function appendChat(logId, name, team, text, isSystem) {
+  const log = document.getElementById(logId);
+  if (!log) return;
+  const div = document.createElement('div');
+  div.className = 'chat-msg' + (isSystem ? ' system' : '');
+  if (isSystem) {
+    div.textContent = text;
+  } else {
+    const teamColor = team === 'white' ? '#ddd' : '#999';
+    div.innerHTML = `<span class="chat-name" style="color:${teamColor}">${name}:</span> ${text}`;
+  }
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function sendLobbyChat() {
+  const input = document.getElementById('lobby-chat-input');
+  const text = input.value.trim();
+  if (!text || !myName) return;
+  input.value = '';
+  const myTeam = lobbyPlayers[myId]?.team || 'white';
+  // Send to host — host relays to everyone including back to sender
+  // (host handles its own display in handleHostMessage)
+  if (isHost) {
+    // Host is sender — show locally and broadcast to all clients
+    appendChat('lobby-chat-log', myName, myTeam, text, false);
+    broadcastMsg({ type: 'chat', name: myName, team: myTeam, text, scope: 'lobby' });
+  } else {
+    // Client sends to host who will relay back to everyone
+    if (hostConn) try { hostConn.send({ type: 'chat', name: myName, team: myTeam, text, scope: 'lobby' }); } catch(e) {}
+  }
+}
+
+function sendIngameChat() {
+  const input = document.getElementById('ingame-chat-input');
+  const text = input.value.trim();
+  if (!text || !gameState) return;
+  input.value = '';
+  closeChatInput();
+  const me = gameState.players[myId];
+  if (!me) return;
+  if (isHost) {
+    // Host sends: show locally and relay to same-team clients
+    appendChat('ingame-chat-log', me.name, me.team, text, false);
+    Object.entries(peerConns).forEach(([peerId, conn]) => {
+      const peer = gameState?.players[peerId];
+      if (peer && peer.team === me.team) {
+        try { conn.send({ type: 'chat', name: me.name, team: me.team, text, scope: 'team' }); } catch(e) {}
+      }
+    });
+  } else {
+    // Client: do NOT show locally yet — wait for host relay back
+    if (hostConn) try { hostConn.send({ type: 'chat', name: me.name, team: me.team, text, scope: 'team' }); } catch(e) {}
+  }
+}
+
+function openChatInput() {
+  chatOpen = true;
+  const row = document.getElementById('ingame-chat-row');
+  row.classList.add('visible');
+  document.getElementById('ingame-chat-input').focus();
+}
+
+function closeChatInput() {
+  chatOpen = false;
+  const row = document.getElementById('ingame-chat-row');
+  row.classList.remove('visible');
+}
+
+function toggleChatInput() {
+  if (chatOpen) closeChatInput();
+  else openChatInput();
+}
+
+function switchTileset() {
+  currentTileset = currentTileset === 'white' ? 'black' : 'white';
+  tileChangeTimer = TILESET_MIN + Math.random() * (TILESET_MAX - TILESET_MIN);
+  const newSeed = Date.now();
+  currentMap = generateMap(newSeed, currentTileset);
+  tileTransitioning = true;
+
+  // Broadcast tileset change
+  broadcastMsg({ type: 'tileset', theme: currentTileset, seed: newSeed, nextIn: tileChangeTimer });
+}
+
+// ─── INPUT ────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  // T opens team chat in-game
+  if (e.code === 'KeyT' && gameState && !chatOpen) {
+    e.preventDefault();
+    openChatInput();
+    return;
+  }
+  // Escape closes chat
+  if (e.code === 'Escape' && chatOpen) {
+    closeChatInput();
+    return;
+  }
+  // Enter sends in-game chat
+  if (e.code === 'Enter' && chatOpen) {
+    sendIngameChat();
+    return;
+  }
+  if (chatOpen) return; // block movement while chatting
+  if (!gameState) return;
+  if (isSpectator) return; // spectators can't move
+  const k = e.code;
+  if (k==='KeyW'||k==='ArrowUp') { localInput.up=true; e.preventDefault(); }
+  if (k==='KeyS'||k==='ArrowDown') { localInput.down=true; e.preventDefault(); }
+  if (k==='KeyA'||k==='ArrowLeft') { localInput.left=true; e.preventDefault(); }
+  if (k==='KeyD'||k==='ArrowRight') { localInput.right=true; e.preventDefault(); }
+  if (k==='Space') {
+    e.preventDefault();
+    tryPulse();
+  }
+});
+document.addEventListener('keyup', e => {
+  const k = e.code;
+  if (k==='KeyW'||k==='ArrowUp') localInput.up=false;
+  if (k==='KeyS'||k==='ArrowDown') localInput.down=false;
+  if (k==='KeyA'||k==='ArrowLeft') localInput.left=false;
+  if (k==='KeyD'||k==='ArrowRight') localInput.right=false;
+});
+
+function tryPulse() {
+  const now = Date.now();
+  if (now - lastPulseTime < PULSE_COOLDOWN) return;
+  lastPulseTime = now;
+  const me = gameState?.players[myId];
+  if (!me || me.eliminated) return;
+
+  const pulse = { x: me.x, y: me.y, ownerId: me.id, team: me.team, startTime: now, processed: false, id: myId+now };
+  if (isHost) {
+    gameState.pulses = [...(gameState.pulses||[]), pulse];
+  } else {
+    sendToHost({ type: 'pulse', pulse });
+  }
+}
+
+// ─── NETWORK HELPERS ──────────────────────────────────────────
+function broadcastMsg(msg) {
+  Object.values(peerConns).forEach(conn => {
+    try { conn.send(msg); } catch(e) {}
+  });
+}
+
+function broadcastState() {
+  const msg = { type: 'state', state: gameState, tileset: currentTileset };
+  broadcastMsg(msg);
+}
+
+function sendToHost(msg) {
+  if (isHost) {
+    handleHostMessage(msg, myId);
+  } else if (hostConn) {
+    try { hostConn.send(msg); } catch(e) {}
+  }
+}
+
+function sendInputToHost() {
+  sendToHost({ type: 'input', input: localInput });
+}
+
+setInterval(() => {
+  if (gameState && !isHost) sendInputToHost();
+}, 33);
+
+// ─── HOST MESSAGE HANDLER ─────────────────────────────────────
+function handleHostMessage(msg, fromId) {
+  if (!isHost) return;
+  if (msg.type === 'input') {
+    if (gameState?.players[fromId]) {
+      gameState.players[fromId].pendingInput = msg.input;
+    }
+  }
+  if (msg.type === 'pulse') {
+    gameState.pulses = [...(gameState.pulses||[]), msg.pulse];
+  }
+  if (msg.type === 'join') {
+    addPlayerToLobby(fromId, msg.name);
+  }
+  if (msg.type === 'chat') {
+    const sender = gameState?.players[fromId] || lobbyPlayers[fromId];
+    if (msg.scope === 'lobby') {
+      // Relay to ALL clients (including the sender so they see their own message)
+      broadcastMsg({ type: 'chat', name: msg.name, team: msg.team, text: msg.text, scope: 'lobby' });
+      // Show on host
+      appendChat('lobby-chat-log', msg.name, msg.team, msg.text, false);
+    } else if (msg.scope === 'team') {
+      // Relay to ALL same-team clients INCLUDING the sender so they see their own message
+      const senderTeam = sender?.team || msg.team;
+      Object.entries(peerConns).forEach(([peerId, conn]) => {
+        const peer = gameState?.players[peerId];
+        if (peer && peer.team === senderTeam) {
+          try { conn.send({ type: 'chat', name: msg.name, team: msg.team, text: msg.text, scope: 'team' }); } catch(e) {}
+        }
+      });
+      // Show on host if same team
+      if (gameState?.players[myId]?.team === senderTeam) {
+        appendChat('ingame-chat-log', msg.name, msg.team, msg.text, false);
+      }
+    }
+  }
+}
+
+// ─── CLIENT MESSAGE HANDLER ───────────────────────────────────
+function handleClientMessage(msg) {
+  if (msg.type === 'state') {
+    if (!isHost) {
+      const prev = gameState;
+      gameState = msg.state;
+      // Check if I just got eliminated → become spectator
+      if (prev && myId && gameState.players[myId]?.eliminated && !isSpectator) {
+        isSpectator = true;
+        appendChat('ingame-chat-log', 'SYSTEM', 'white', 'You have been eliminated. Spectating...', true);
+      }
+      // Sync zone bounds from elapsed
+      const elapsed = (Date.now() - gameStartTime) / 1000;
+      updateZoneBounds(elapsed);
+    }
+  }
+  if (msg.type === 'tileset') {
+    currentTileset = msg.theme;
+    currentMap = generateMap(msg.seed, msg.theme);
+    tileChangeTimer = msg.nextIn;
+    tileTransitioning = true;
+  }
+  if (msg.type === 'lobby_update') {
+    updateLobbyUI(msg.lobby);
+  }
+  if (msg.type === 'start') {
+    gameStartTime = msg.startTime;
+    gameState = msg.gameState;
+    currentMap = generateMap(msg.seed, msg.tileset);
+    currentTileset = msg.tileset;
+    tileChangeTimer = TILESET_MIN + Math.random() * (TILESET_MAX - TILESET_MIN);
+    isSpectator = false;
+    launchGame();
+  }
+  if (msg.type === 'end') {
+    showEndScreen(msg.reason, msg.players);
+  }
+  if (msg.type === 'killfeed') {
+    addKillFeedEntry(msg.text);
+  }
+  if (msg.type === 'chat') {
+    if (msg.scope === 'lobby') {
+      appendChat('lobby-chat-log', msg.name, msg.team, msg.text, false);
+    } else {
+      appendChat('ingame-chat-log', msg.name, msg.team, msg.text, false);
+    }
+  }
+}
+
+// ─── LOBBY MANAGEMENT ─────────────────────────────────────────
+let lobbyPlayers = {}; // {id: {name, team}}
+
+function addPlayerToLobby(id, name) {
+  const whiteCnt = Object.values(lobbyPlayers).filter(p=>p.team==='white').length;
+  const blackCnt = Object.values(lobbyPlayers).filter(p=>p.team==='black').length;
+  const team = whiteCnt <= blackCnt ? 'white' : 'black';
+  lobbyPlayers[id] = { name, team };
+  broadcastLobbyUpdate();
+}
+
+function broadcastLobbyUpdate() {
+  const msg = { type: 'lobby_update', lobby: lobbyPlayers };
+  broadcastMsg(msg);
+  updateLobbyUI(lobbyPlayers);
+}
+
+function updateLobbyUI(lobby) {
+  lobbyPlayers = lobby;
+  const whitePlayers = Object.values(lobby).filter(p=>p.team==='white');
+  const blackPlayers = Object.values(lobby).filter(p=>p.team==='black');
+  document.getElementById('white-list').innerHTML = whitePlayers.map(p=>`▸ ${p.name}`).join('<br>') || '—';
+  document.getElementById('black-list').innerHTML = blackPlayers.map(p=>`▸ ${p.name}`).join('<br>') || '—';
+  document.getElementById('player-count').textContent = `${Object.keys(lobby).length} / 16`;
+
+  const startBtn = document.getElementById('start-btn');
+  if (Object.keys(lobby).length >= 2) {
+    startBtn.classList.remove('disabled');
+  } else {
+    startBtn.classList.add('disabled');
+  }
+}
+
+// ─── PRE-JOIN SPECTATOR PREVIEW ───────────────────────────────
+// When page loads with a ?room= param, silently connect and watch lobby
+(function previewLobby() {
+  const params = new URLSearchParams(window.location.search);
+  const roomId = params.get('room');
+  if (!roomId) return;
+
+  // Show a temporary peer just to receive lobby_update messages before joining
+  const previewPeer = new Peer();
+  let previewConn = null;
+
+  previewPeer.on('open', () => {
+    previewConn = previewPeer.connect(roomId);
+    previewConn.on('open', () => {
+      document.getElementById('status-msg').textContent = '👁 PREVIEWING LOBBY — ENTER NAME TO JOIN';
+    });
+    previewConn.on('data', msg => {
+      if (msg.type === 'lobby_update') {
+        updateLobbyUI(msg.lobby);
+      }
+    });
+    previewConn.on('close', () => {
+      document.getElementById('status-msg').textContent = '⚠ HOST DISCONNECTED';
+    });
+  });
+  previewPeer.on('error', () => {
+    document.getElementById('status-msg').textContent = '⚠ COULD NOT REACH HOST';
+  });
+
+  // Store so joinLobby can close the preview peer cleanly
+  window._previewPeer = previewPeer;
+  window._previewConn = previewConn;
+})();
+
+// ─── JOIN LOBBY ───────────────────────────────────────────────
+function joinLobby() {
+  myName = document.getElementById('name-input').value.trim() || 'PLAYER';
+  document.getElementById('join-btn').style.display = 'none';
+  document.getElementById('name-section').style.display = 'none';
+
+  // Close the preview connection before establishing the real one
+  if (window._previewConn) { try { window._previewConn.close(); } catch(e){} window._previewConn = null; }
+  if (window._previewPeer) { try { window._previewPeer.destroy(); } catch(e){} window._previewPeer = null; }
+
+  const params = new URLSearchParams(window.location.search);
+  lobbyId = params.get('room');
+
+  if (!lobbyId) {
+    // Create new lobby (become host)
+    isHost = true;
+    hostPeer = new Peer();
+    hostPeer.on('open', id => {
+      myId = id;
+      lobbyId = id;
+      const link = `${window.location.origin}${window.location.pathname}?room=${id}`;
+      document.getElementById('share-section').style.display = 'block';
+      document.getElementById('share-link').textContent = link;
+      document.getElementById('start-btn').style.display = 'block';
+      document.getElementById('status-msg').textContent = '✓ ROOM CREATED — WAITING FOR PLAYERS';
+
+      addPlayerToLobby(myId, myName);
+      document.getElementById('lobby-chat-box').style.display = 'block';
+    });
+    hostPeer.on('connection', conn => {
+      const remoteId = conn.peer;
+      peerConns[remoteId] = conn;
+      conn.on('data', msg => handleHostMessage(msg, remoteId));
+      conn.on('close', () => {
+        delete peerConns[remoteId];
+        delete lobbyPlayers[remoteId];
+        broadcastLobbyUpdate();
+      });
+      // Send current lobby to new joiner
+      conn.on('open', () => {
+        conn.send({ type: 'lobby_update', lobby: lobbyPlayers });
+      });
+    });
+    hostPeer.on('error', err => {
+      document.getElementById('status-msg').textContent = 'ERROR: ' + err.type;
+    });
+  } else {
+    // Join existing lobby
+    isHost = false;
+    hostPeer = new Peer();
+    hostPeer.on('open', id => {
+      myId = id;
+      hostConn = hostPeer.connect(lobbyId);
+      hostConn.on('open', () => {
+        hostConn.send({ type: 'join', name: myName });
+        document.getElementById('status-msg').textContent = '✓ CONNECTED — WAITING FOR HOST';
+        document.getElementById('lobby-chat-box').style.display = 'block';
+      });
+      hostConn.on('data', msg => handleClientMessage(msg));
+      hostConn.on('close', () => {
+        document.getElementById('status-msg').textContent = '⚠ DISCONNECTED FROM HOST';
+      });
+    });
+    hostPeer.on('error', err => {
+      document.getElementById('status-msg').textContent = 'CONNECTION FAILED: ' + err.type;
+    });
+  }
+}
+
+function copyLink() {
+  const link = document.getElementById('share-link').textContent;
+  navigator.clipboard.writeText(link).then(() => {
+    document.getElementById('share-link').textContent = '✓ COPIED!';
+    setTimeout(() => { document.getElementById('share-link').textContent = link; }, 1500);
+  });
+}
+
+// ─── START GAME ───────────────────────────────────────────────
+function startGame() {
+  if (!isHost) return;
+  if (Object.keys(lobbyPlayers).length < 1) return;
+
+  const seed = Date.now();
+  const tileset = 'white';
+  const initialMap = generateMap(seed, tileset);
+  currentMap = initialMap;
+  currentTileset = tileset;
+  tileChangeTimer = TILESET_MIN + Math.random() * (TILESET_MAX - TILESET_MIN);
+
+  // Build players
+  const players = {};
+  const whiteList = Object.entries(lobbyPlayers).filter(([,p])=>p.team==='white');
+  const blackList = Object.entries(lobbyPlayers).filter(([,p])=>p.team==='black');
+
+  whiteList.forEach(([id, p], i) => {
+    players[id] = {
+      id, name: p.name, team: 'white',
+      x: (2 + i + 0.5) * TILE_SIZE,
+      y: (2 + 0.5) * TILE_SIZE,
+      kills: 0, eliminated: false, pendingInput: {}
+    };
+  });
+  blackList.forEach(([id, p], i) => {
+    players[id] = {
+      id, name: p.name, team: 'black',
+      x: (MAP_W - 3 - i - 0.5) * TILE_SIZE,
+      y: (MAP_H - 3 - 0.5) * TILE_SIZE,
+      kills: 0, eliminated: false, pendingInput: {}
+    };
+  });
+
+  gameState = { players, pulses: [] };
+  const now = Date.now();
+  gameStartTime = now;
+
+  broadcastMsg({ type: 'start', startTime: now, gameState, seed, tileset });
+  launchGame();
+}
+
+function launchGame() {
+  dustParticles = [];
+  isSpectator = false;
+  killFeedEntries = [];
+  zoneLeft = 0; zoneTop = 0; zoneRight = 0; zoneBottom = 0;
+  showScreen('game-screen');
+  canvas.width = CANVAS_W;
+  canvas.height = CANVAS_H;
+
+  // Scale canvas to fit screen
+  const scaleX = window.innerWidth / CANVAS_W;
+  const scaleY = window.innerHeight / CANVAS_H;
+  const scale = Math.min(scaleX, scaleY);
+  canvas.style.width = (CANVAS_W * scale) + 'px';
+  canvas.style.height = (CANVAS_H * scale) + 'px';
+
+  lastFrame = performance.now();
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// ─── END GAME ─────────────────────────────────────────────────
+function endGame() {
+  if (!isHost) return;
+  cancelAnimationFrame(animFrame);
+
+  const players = Object.values(gameState.players);
+  const whiteAlive = players.filter(p=>p.team==='white'&&!p.eliminated).length;
+  const blackAlive = players.filter(p=>p.team==='black'&&!p.eliminated).length;
+
+  let reason;
+  if (whiteAlive === 0 && blackAlive === 0) reason = 'DRAW';
+  else if (whiteAlive === 0) reason = 'TEAM BLACK WINS';
+  else if (blackAlive === 0) reason = 'TEAM WHITE WINS';
+  else {
+    // Time limit — count kills
+    const whiteKills = players.filter(p=>p.team==='white').reduce((s,p)=>s+p.kills,0);
+    const blackKills = players.filter(p=>p.team==='black').reduce((s,p)=>s+p.kills,0);
+    if (whiteKills > blackKills) reason = 'TEAM WHITE WINS';
+    else if (blackKills > whiteKills) reason = 'TEAM BLACK WINS';
+    else reason = 'DRAW';
+  }
+
+  broadcastMsg({ type: 'end', reason, players });
+  showEndScreen(reason, players);
+}
+
+function showEndScreen(reason, players) {
+  cancelAnimationFrame(animFrame);
+  showScreen('end-screen');
+  document.getElementById('end-winner').textContent = reason;
+
+  const sorted = [...players].sort((a,b) => b.kills - a.kills);
+  const medals = ['🥇','🥈','🥉'];
+  const tbody = document.getElementById('score-body');
+  tbody.innerHTML = sorted.map((p, i) => `
+    <tr class="${i<3?'rank-'+(i+1):''}">
+      <td><span class="rank-medal">${medals[i]||'#'+(i+1)}</span></td>
+      <td>${p.name}</td>
+      <td style="color:${p.team==='white'?'#ccc':'#888'}">${p.team.toUpperCase()}</td>
+      <td>${p.kills}</td>
+      <td style="color:${p.eliminated?'#555':'#6f6'}">${p.eliminated?'ELIMINATED':'ALIVE'}</td>
+    </tr>
+  `).join('');
+}
+
+function backToLobby() {
+  showScreen('lobby-screen');
+  gameState = null;
+}
+
+// ─── UTILS ────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// Handle return key in name input
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') joinLobby();
+});
+
+// Lobby chat enter key
+document.getElementById('lobby-chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendLobbyChat();
+});
+
+// In-game chat enter key (handled in keydown above via chatOpen flag)
+
+// Resize handler
+window.addEventListener('resize', () => {
+  if (gameState) {
+    const scaleX = window.innerWidth / CANVAS_W;
+    const scaleY = window.innerHeight / CANVAS_H;
+    const scale = Math.min(scaleX, scaleY);
+    canvas.style.width = (CANVAS_W * scale) + 'px';
+    canvas.style.height = (CANVAS_H * scale) + 'px';
+  }
+});
+</script>
+</body>
+</html>
